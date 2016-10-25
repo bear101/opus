@@ -54,7 +54,8 @@ void print_usage( char* argv[] )
     fprintf(stderr, "-d                   : only runs the decoder (reads the bit-stream as input)\n" );
     fprintf(stderr, "-cbr                 : enable constant bitrate; default: variable bitrate\n" );
     fprintf(stderr, "-cvbr                : enable constrained variable bitrate; default: unconstrained\n" );
-    fprintf(stderr, "-variable-duration   : enable frames of variable duration (experts only); default: disabled\n" );
+    fprintf(stderr, "-variable-duration   : enable frames of variable duration (experimental, experts only); default: disabled\n" );
+    fprintf(stderr, "-delayed-decision    : use look-ahead for speech/music detection (experts only); default: disabled\n" );
     fprintf(stderr, "-bandwidth <NB|MB|WB|SWB|FB> : audio bandwidth (from narrowband to fullband); default: sampling rate\n" );
     fprintf(stderr, "-framesize <2.5|5|10|20|40|60> : frame size in ms; default: 20 \n" );
     fprintf(stderr, "-max_payload <bytes> : maximum payload size in bytes, default: 1024\n" );
@@ -591,10 +592,11 @@ int main(int argc, char *argv[])
 
     in = (short*)malloc(max_frame_size*channels*sizeof(short));
     out = (short*)malloc(max_frame_size*channels*sizeof(short));
+    /* We need to allocate for 16-bit PCM data, but we store it as unsigned char. */
     fbytes = (unsigned char*)malloc(max_frame_size*channels*sizeof(short));
-    data[0] = (unsigned char*)calloc(max_payload_bytes,sizeof(char));
+    data[0] = (unsigned char*)calloc(max_payload_bytes,sizeof(unsigned char));
     if ( use_inbandfec ) {
-        data[1] = (unsigned char*)calloc(max_payload_bytes,sizeof(char));
+        data[1] = (unsigned char*)calloc(max_payload_bytes,sizeof(unsigned char));
     }
     if(delayed_decision)
     {
@@ -763,7 +765,7 @@ int main(int argc, char *argv[])
             }
             tot_samples += nb_encoded;
         } else {
-            int output_samples;
+            opus_int32 output_samples;
             lost = len[toggle]==0 || (packet_loss_perc>0 && rand()%100 < packet_loss_perc);
             if (lost)
                opus_decoder_ctl(dec, OPUS_GET_LAST_PACKET_DURATION(&output_samples));
