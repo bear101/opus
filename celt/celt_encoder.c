@@ -226,7 +226,8 @@ void opus_custom_encoder_destroy(CELTEncoder *st)
 
 
 static int transient_analysis(const opus_val32 * OPUS_RESTRICT in, int len, int C,
-                              opus_val16 *tf_estimate, int *tf_chan)
+                              opus_val16 *tf_estimate, int *tf_chan, int allow_weak_transients,
+                              int *weak_transient)
 {
    int i;
    VARDECL(opus_val16, tmp);
@@ -236,6 +237,12 @@ static int transient_analysis(const opus_val32 * OPUS_RESTRICT in, int len, int 
    int c;
    opus_val16 tf_max;
    int len2;
+   /* Forward masking: 6.7 dB/ms. */
+#ifdef FIXED_POINT
+   int forward_shift = 4;
+#else
+   opus_val16 forward_decay = QCONST16(.0625f,15);
+#endif
    /* Table of 6*64/x, trained on real data to minimize the average error */
    static const unsigned char inv_table[128] = {
          255,255,156,110, 86, 70, 59, 51, 45, 40, 37, 33, 31, 28, 26, 25,
@@ -250,6 +257,19 @@ static int transient_analysis(const opus_val32 * OPUS_RESTRICT in, int len, int 
    SAVE_STACK;
    ALLOC(tmp, len, opus_val16);
 
+   *weak_transient = 0;
+   /* For lower bitrates, let's be more conservative and have a forward masking
+      decay of 3.3 dB/ms. This avoids having to code transients at very low
+      bitrate (mostly for hybrid), which can result in unstable energy and/or
+      partial collapse. */
+   if (allow_weak_transients)
+   {
+#ifdef FIXED_POINT
+      forward_shift = 5;
+#else
+      forward_decay = QCONST16(.03125f,15);
+#endif
+   }
    len2=len/2;
    for (c=0;c<C;c++)
    {
@@ -302,9 +322,9 @@ static int transient_analysis(const opus_val32 * OPUS_RESTRICT in, int len, int 
          mean += x2;
 #ifdef FIXED_POINT
          /* FIXME: Use PSHR16() instead */
-         tmp[i] = mem0 + PSHR32(x2-mem0,4);
+         tmp[i] = mem0 + PSHR32(x2-mem0,forward_shift);
 #else
-         tmp[i] = mem0 + MULT16_16_P15(QCONST16(.0625f,15),x2-mem0);
+         tmp[i] = mem0 + MULT16_16_P15(forward_decay,x2-mem0);
 #endif
          mem0 = tmp[i];
       }
@@ -314,6 +334,7 @@ static int transient_analysis(const opus_val32 * OPUS_RESTRICT in, int len, int 
       /* Backward pass to compute the pre-echo threshold */
       for (i=len2-1;i>=0;i--)
       {
+         /* Backward masking: 13.9 dB/ms. */
 #ifdef FIXED_POINT
          /* FIXME: Use PSHR16() instead */
          tmp[i] = mem0 + PSHR32(tmp[i]-mem0,3);
@@ -362,7 +383,12 @@ static int transient_analysis(const opus_val32 * OPUS_RESTRICT in, int len, int 
       }
    }
    is_transient = mask_metric>200;
-
+   /* For low bitrates, define "weak transients" that need to be
+      handled differently to avoid partial collapse. */
+   if (allow_weak_transients && is_transient && mask_metric<600) {
+      is_transient = 0;
+      *weak_transient = 1;
+   }
    /* Arbitrary metric for VBR boost */
    tf_max = MAX16(0,celt_sqrt(27*mask_metric)-42);
    /* *tf_estimate = 1 + MIN16(1, sqrt(MAX16(0, tf_max-30))/20); */
@@ -1369,6 +1395,7 @@ int celt_encode_with_ec(CELTEncoder * OPUS_RESTRICT st, const opus_val16 * pcm, 
    opus_val16 surround_trim = 0;
    opus_int32 equiv_rate;
    int hybrid;
+   int weak_transient = 0;
    VARDECL(opus_val16, surround_dynalloc);
    ALLOC_STACK;
 
@@ -1585,8 +1612,12 @@ int celt_encode_with_ec(CELTEncoder * OPUS_RESTRICT st, const opus_val16 * pcm, 
    shortBlocks = 0;
    if (st->complexity >= 1 && !st->lfe)
    {
+      /* Reduces the likelihood of energy instability on fricatives at low bitrate
+         in hybrid mode. It seems like we still want to have real transients on vowels
+         though (small SILK quantization offset value). */
+      int allow_weak_transients = hybrid && effectiveBytes<15 && st->silk_info.offset >= 100;
       isTransient = transient_analysis(in, N+overlap, CC,
-            &tf_estimate, &tf_chan);
+            &tf_estimate, &tf_chan, allow_weak_transients, &weak_transient);
    }
    if (LM>0 && ec_tell(enc)+3<=total_bits)
    {
@@ -1765,6 +1796,14 @@ int celt_encode_with_ec(CELTEncoder * OPUS_RESTRICT st, const opus_val16 * pcm, 
       tf_select = tf_analysis(mode, effEnd, isTransient, tf_res, lambda, X, N, LM, tf_estimate, tf_chan);
       for (i=effEnd;i<end;i++)
          tf_res[i] = tf_res[effEnd-1];
+   } else if (hybrid && weak_transient)
+   {
+      /* For weak transients, we rely on the fact that improving time resolution using
+         TF on a long window is imperfect and will not result in an energy collapse at
+         low bitrate. */
+      for (i=0;i<end;i++)
+         tf_res[i] = 1;
+      tf_select=0;
    } else if (hybrid && effectiveBytes<15)
    {
       /* For low bitrate hybrid, we force temporal resolution to 5 ms rather than 2.5 ms. */

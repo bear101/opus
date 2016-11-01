@@ -835,8 +835,8 @@ static opus_int32 rate_allocation(
    return rate_sum;
 }
 
-/* Max size in case the encoder decides to return three frames */
-#define MS_FRAME_TMP (3*1275+7)
+/* Max size in case the encoder decides to return six frames (6 x 20 ms = 120 ms) */
+#define MS_FRAME_TMP (6*1275+12)
 static int opus_multistream_encode_native
 (
     OpusMSEncoder *st,
@@ -903,9 +903,11 @@ static int opus_multistream_encode_native
    }
    /* Validate frame_size before using it to allocate stack space.
       This mirrors the checks in opus_encode[_float](). */
-   if (400*frame_size != Fs && 200*frame_size != Fs &&
-       100*frame_size != Fs &&  50*frame_size != Fs &&
-        25*frame_size != Fs &&  50*frame_size != 3*Fs)
+   if (400*frame_size != Fs   && 200*frame_size != Fs   &&
+       100*frame_size != Fs   &&  50*frame_size != Fs   &&
+        25*frame_size != Fs   &&  50*frame_size != 3*Fs &&
+        50*frame_size != 4*Fs &&  50*frame_size != 5*Fs &&
+        50*frame_size != 6*Fs)
    {
       RESTORE_STACK;
       return OPUS_BAD_ARG;
@@ -913,6 +915,9 @@ static int opus_multistream_encode_native
 
    /* Smallest packet the encoder can produce. */
    smallest_packet = st->layout.nb_streams*2-1;
+   /* 100 ms needs an extra byte per stream for the ToC. */
+   if (Fs/frame_size == 10)
+     smallest_packet += st->layout.nb_streams;
    if (max_data_bytes < smallest_packet)
    {
       RESTORE_STACK;
@@ -1034,6 +1039,9 @@ static int opus_multistream_encode_native
       curr_max = max_data_bytes - tot_size;
       /* Reserve one byte for the last stream and two for the others */
       curr_max -= IMAX(0,2*(st->layout.nb_streams-s-1)-1);
+      /* For 100 ms, reserve an extra byte per stream for the ToC */
+      if (Fs/frame_size == 10)
+        curr_max -= st->layout.nb_streams-s-1;
       curr_max = IMIN(curr_max,MS_FRAME_TMP);
       /* Repacketizer will add one or two bytes for self-delimited frames */
       if (s != st->layout.nb_streams-1) curr_max -=  curr_max>253 ? 2 : 1;

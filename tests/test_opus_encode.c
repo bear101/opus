@@ -128,6 +128,12 @@ int get_frame_size_enum(int frame_size, int sampling_rate)
       frame_size_enum = OPUS_FRAMESIZE_40_MS;
    else if(frame_size==3*sampling_rate/50)
       frame_size_enum = OPUS_FRAMESIZE_60_MS;
+   else if(frame_size==4*sampling_rate/50)
+      frame_size_enum = OPUS_FRAMESIZE_80_MS;
+   else if(frame_size==5*sampling_rate/50)
+      frame_size_enum = OPUS_FRAMESIZE_100_MS;
+   else if(frame_size==6*sampling_rate/50)
+      frame_size_enum = OPUS_FRAMESIZE_120_MS;
    else
       test_failed();
 
@@ -189,14 +195,16 @@ void fuzz_encoder_settings(const int num_encoders, const int num_setting_changes
    int use_vbr[3] = {0, 1, 1};
    int vbr_constraints[3] = {0, 1, 1};
    int complexities[11] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
-   int max_bandwidths[6] = {OPUS_BANDWIDTH_NARROWBAND, OPUS_BANDWIDTH_MEDIUMBAND, OPUS_BANDWIDTH_WIDEBAND, OPUS_BANDWIDTH_SUPERWIDEBAND, OPUS_BANDWIDTH_FULLBAND, OPUS_BANDWIDTH_FULLBAND};
+   int max_bandwidths[6] = {OPUS_BANDWIDTH_NARROWBAND, OPUS_BANDWIDTH_MEDIUMBAND,
+                            OPUS_BANDWIDTH_WIDEBAND, OPUS_BANDWIDTH_SUPERWIDEBAND,
+                            OPUS_BANDWIDTH_FULLBAND, OPUS_BANDWIDTH_FULLBAND};
    int signals[4] = {OPUS_AUTO, OPUS_AUTO, OPUS_SIGNAL_VOICE, OPUS_SIGNAL_MUSIC};
    int inband_fecs[3] = {0, 0, 1};
    int packet_loss_perc[4] = {0, 1, 2, 5};
    int lsb_depths[2] = {8, 24};
    int prediction_disabled[3] = {0, 0, 1};
    int use_dtx[2] = {0, 1};
-   int frame_sizes_ms_x2[6] = {5, 10, 20, 40, 80, 120};  /* x2 to avoid 2.5 ms */
+   int frame_sizes_ms_x2[9] = {5, 10, 20, 40, 80, 120, 160, 200, 240};  /* x2 to avoid 2.5 ms */
    char debug_info[512];
 
    for (i=0; i<num_encoders; i++) {
@@ -671,6 +679,8 @@ int main(int _argc, char **_argv)
    if(!oversion)test_failed();
    fprintf(stderr,"Testing %s encoder. Random seed: %u (%.4X)\n", oversion, iseed, fast_rand() % 65535);
    if(env_used)fprintf(stderr,"  Random seed set from the environment (SEED=%s).\n", env_seed);
+
+   regression_test();
 
    /*Setting TEST_OPUS_NOFUZZ tells the tool not to send garbage data
      into the decoders. This is helpful because garbage data
