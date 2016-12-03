@@ -87,7 +87,6 @@ struct OpusMSEncoder {
    int variable_duration;
    MappingType mapping_type;
    opus_int32 bitrate_bps;
-   float subframe_mem[3];
    /* Encoder states go here */
    /* then opus_val32 window_mem[channels*120]; */
    /* then opus_val32 preemph_mem[channels]; */
@@ -461,7 +460,6 @@ static int opus_multistream_encoder_init_impl(
    st->layout.nb_channels = channels;
    st->layout.nb_streams = streams;
    st->layout.nb_coupled_streams = coupled_streams;
-   st->subframe_mem[0]=st->subframe_mem[1]=st->subframe_mem[2]=0;
    if (mapping_type != MAPPING_TYPE_SURROUND)
       st->lfe_stream = -1;
    st->bitrate_bps = OPUS_AUTO;
@@ -729,14 +727,6 @@ static void surround_rate_allocation(
          + coupled_ratio*nb_coupled /* stereo */
          + nb_lfe*lfe_ratio;
    channel_rate = 256*(opus_int64)(bitrate - lfe_offset*nb_lfe - stream_offset*(nb_coupled+nb_uncoupled) - channel_offset*nb_normal)/total;
-#ifndef FIXED_POINT
-   if (st->variable_duration==OPUS_FRAMESIZE_VARIABLE && frame_size != Fs/50)
-   {
-      opus_int32 bonus;
-      bonus = 60*(Fs/frame_size-50);
-      channel_rate += bonus;
-   }
-#endif
 
    for (i=0;i<st->layout.nb_streams;i++)
    {
@@ -787,14 +777,6 @@ static void ambisonics_rate_allocation(
    non_mono_rate =
          total_rate * rate_ratio_den
          / (rate_ratio_den*num_channels + rate_ratio_num - rate_ratio_den);
-
-#ifndef FIXED_POINT
-   if (st->variable_duration==OPUS_FRAMESIZE_VARIABLE && frame_size != Fs/50)
-   {
-      opus_int32 bonus = 60*(Fs/frame_size-50);
-      non_mono_rate += bonus;
-   }
-#endif
 
    rate[0] = total_rate - (num_channels - 1) * non_mono_rate;
    for (i=1;i<st->layout.nb_streams;i++)
@@ -882,32 +864,8 @@ static int opus_multistream_encode_native
    opus_encoder_ctl((OpusEncoder*)ptr, OPUS_GET_VBR(&vbr));
    opus_encoder_ctl((OpusEncoder*)ptr, CELT_GET_MODE(&celt_mode));
 
-   {
-      opus_int32 delay_compensation;
-
-      opus_encoder_ctl((OpusEncoder*)ptr, OPUS_GET_LOOKAHEAD(&delay_compensation));
-      delay_compensation -= Fs/400;
-      frame_size = compute_frame_size(pcm, analysis_frame_size,
-            st->variable_duration, st->layout.nb_channels, Fs, st->bitrate_bps,
-            delay_compensation, downmix
-#ifndef DISABLE_FLOAT_API
-            , st->subframe_mem
-#endif
-            );
-   }
-
-   if (400*frame_size < Fs)
-   {
-      RESTORE_STACK;
-      return OPUS_BAD_ARG;
-   }
-   /* Validate frame_size before using it to allocate stack space.
-      This mirrors the checks in opus_encode[_float](). */
-   if (400*frame_size != Fs   && 200*frame_size != Fs   &&
-       100*frame_size != Fs   &&  50*frame_size != Fs   &&
-        25*frame_size != Fs   &&  50*frame_size != 3*Fs &&
-        50*frame_size != 4*Fs &&  50*frame_size != 5*Fs &&
-        50*frame_size != 6*Fs)
+   frame_size = frame_size_select(analysis_frame_size, st->variable_duration, Fs);
+   if (frame_size <= 0)
    {
       RESTORE_STACK;
       return OPUS_BAD_ARG;
@@ -1346,7 +1304,6 @@ int opus_multistream_encoder_ctl(OpusMSEncoder *st, int request, ...)
    case OPUS_RESET_STATE:
    {
       int s;
-      st->subframe_mem[0] = st->subframe_mem[1] = st->subframe_mem[2] = 0;
       if (st->mapping_type == MAPPING_TYPE_SURROUND)
       {
          OPUS_CLEAR(ms_get_preemph_mem(st), st->layout.nb_channels);

@@ -66,7 +66,7 @@ static int celt_ec_internal_error(void)
     opus_multistream_encoder_ctl(enc, OPUS_SET_PACKET_LOSS_PERC(0));
     opus_multistream_encoder_ctl(enc, OPUS_SET_BITRATE(OPUS_AUTO));
     {
-        static const short pcm[320] = 
+        static const short pcm[320] =
         {
                  0,     0,     0,     0,     0,     0,     0,     0,     0,
                  0,     0,     0,     0,     0,     0,  1792,  1799,  1799,
@@ -122,7 +122,7 @@ static int celt_ec_internal_error(void)
     opus_multistream_encoder_ctl(enc, OPUS_SET_PACKET_LOSS_PERC(90));
     opus_multistream_encoder_ctl(enc, OPUS_SET_BITRATE(280130));
     {
-        static const short pcm[160] = 
+        static const short pcm[160] =
         {
              -9510, -9510, -9510, -9510, -9510, -9510, -9510, -9510, -9510,
              -9510, -9510, -9510, -9510, -9510, -9510, -9526, -9510, -9510,
@@ -160,7 +160,7 @@ static int celt_ec_internal_error(void)
     opus_multistream_encoder_ctl(enc, OPUS_SET_PACKET_LOSS_PERC(90));
     opus_multistream_encoder_ctl(enc, OPUS_SET_BITRATE(280130));
     {
-        static const short pcm[160] = 
+        static const short pcm[160] =
         {
              -9510, -9510, -9510, -9510, -9510, -9510, -9510, -9510, -9510,
              -9510, -9510, -9510, -9510, -9510, -9510, -9510, -9510, -9510,
@@ -198,7 +198,7 @@ static int celt_ec_internal_error(void)
     opus_multistream_encoder_ctl(enc, OPUS_SET_PACKET_LOSS_PERC(90));
     opus_multistream_encoder_ctl(enc, OPUS_SET_BITRATE(280130));
     {
-        static const short pcm[160] = 
+        static const short pcm[160] =
         {
              -9510, -9510, -9510, -9510, -9510, -9510, -9510, -9510, -9510,
              -9510, -9510, -9510, -9510, -9510, -9510, -9510, -9510, -9510,
@@ -236,7 +236,7 @@ static int celt_ec_internal_error(void)
     opus_multistream_encoder_ctl(enc, OPUS_SET_PACKET_LOSS_PERC(90));
     opus_multistream_encoder_ctl(enc, OPUS_SET_BITRATE(280130));
     {
-        static const short pcm[160] = 
+        static const short pcm[160] =
         {
              -9510, -9510,  1799,  1799,  1799,  1799,  1799,  1799,  1799,
               1799,  1799,  1799,  1799,  1799,  1799,  1799,  1799,     0,
@@ -272,7 +272,7 @@ static int celt_ec_internal_error(void)
     opus_multistream_encoder_ctl(enc, OPUS_SET_PACKET_LOSS_PERC(41));
     opus_multistream_encoder_ctl(enc, OPUS_SET_BITRATE(21425));
     {
-        static const short pcm[40] = 
+        static const short pcm[40] =
         {
              10459, -6474, 10204, -6539, 11601, -6824, 13385, -7142, 13872,
             -11553, 13670, -7725, 13463, -6887, 12482, -5580, 12600, -4964,
@@ -329,7 +329,7 @@ static int mscbr_encode_fail10(void)
     opus_multistream_encoder_ctl(enc, OPUS_SET_PACKET_LOSS_PERC(57));
     opus_multistream_encoder_ctl(enc, OPUS_SET_BITRATE(3642675));
     {
-        static const short pcm[20*255] = 
+        static const short pcm[20*255] =
         {
                  0
         };
@@ -379,7 +379,7 @@ static int mscbr_encode_fail(void)
     opus_multistream_encoder_ctl(enc, OPUS_SET_PACKET_LOSS_PERC(0));
     opus_multistream_encoder_ctl(enc, OPUS_SET_BITRATE(15360));
     {
-        static const short pcm[20*192] = 
+        static const short pcm[20*192] =
         {
                  0
         };
@@ -416,7 +416,7 @@ static int surround_analysis_uninit(void)
     opus_multistream_encoder_ctl(enc, OPUS_SET_INBAND_FEC(1));
     opus_multistream_encoder_ctl(enc, OPUS_SET_BITRATE(84315));
     {
-        static const short pcm[960*3] = 
+        static const short pcm[960*3] =
         {
              -6896,  4901, -6158,  4120, -5164,  3631, -4442,  3153, -4070,
               3349, -4577,  4474, -5541,  5058, -6701,  3881, -7933,  1863,
@@ -757,7 +757,7 @@ static int surround_analysis_uninit(void)
     opus_multistream_encoder_ctl(enc, OPUS_SET_PACKET_LOSS_PERC(5));
     opus_multistream_encoder_ctl(enc, OPUS_SET_BITRATE(775410));
     {
-        static const short pcm[1440*3] = 
+        static const short pcm[1440*3] =
         {
              30449, 15083, 14088, 31205,-18678,-12830, 14090,-26138,-25337,
             -11541, -3254, 27628,-22270, 30953,-16136,-30745, 20991,-17406,
@@ -898,7 +898,7 @@ static int ec_enc_shrink_assert(void)
     int data_len;
     unsigned char data[2000];
     static const short pcm1[960] = { 5140 };
-    static const short pcm2[2880] = 
+    static const short pcm2[2880] =
     {
           -256,-12033,     0, -2817,  6912,     0, -5359,  5200,  3061,
              0, -2903,  5652, -1281,-24656,-14433,-24678,    32,-29793,
@@ -951,6 +951,74 @@ static int ec_enc_shrink_assert(void)
     return 0;
 }
 
+static int ec_enc_shrink_assert2(void)
+{
+    OpusEncoder *enc;
+    int err;
+    int data_len;
+    unsigned char data[2000];
+
+    enc = opus_encoder_create(48000, 1, OPUS_APPLICATION_AUDIO, &err);
+    opus_encoder_ctl(enc, OPUS_SET_COMPLEXITY(6));
+    opus_encoder_ctl(enc, OPUS_SET_SIGNAL(OPUS_SIGNAL_VOICE));
+    opus_encoder_ctl(enc, OPUS_SET_BANDWIDTH(OPUS_BANDWIDTH_FULLBAND));
+    opus_encoder_ctl(enc, OPUS_SET_PACKET_LOSS_PERC(26));
+    opus_encoder_ctl(enc, OPUS_SET_BITRATE(27000));
+    {
+        static const short pcm[960] = { 0 };
+        data_len = opus_encode(enc, pcm, 960, data, 2000);
+        assert(data_len > 0);
+    }
+    opus_encoder_ctl(enc, OPUS_SET_SIGNAL(OPUS_SIGNAL_MUSIC));
+    {
+        static const short pcm[480] =
+        {
+            32767, 32767, 0, 0, 32767, 32767, 0, 0, 32767, 32767,
+            -32768, -32768, 0, 0, -32768, -32768, 0, 0, -32768, -32768
+        };
+        data_len = opus_encode(enc, pcm, 480, data, 19);
+        assert(data_len > 0);
+    }
+    opus_encoder_destroy(enc);
+    return 0;
+}
+
+static int silk_gain_assert(void)
+{
+    OpusEncoder *enc;
+    int err;
+    int data_len;
+    unsigned char data[1000];
+    static const short pcm1[160] = { 0 };
+    static const short pcm2[960] =
+    {
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        32767, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 32767
+    };
+
+    enc = opus_encoder_create(8000, 1, OPUS_APPLICATION_AUDIO, &err);
+    opus_encoder_ctl(enc, OPUS_SET_COMPLEXITY(3));
+    opus_encoder_ctl(enc, OPUS_SET_MAX_BANDWIDTH(OPUS_BANDWIDTH_NARROWBAND));
+    opus_encoder_ctl(enc, OPUS_SET_BITRATE(6000));
+    data_len = opus_encode(enc, pcm1, 160, data, 1000);
+    assert(data_len > 0);
+
+    opus_encoder_ctl(enc, OPUS_SET_VBR(0));
+    opus_encoder_ctl(enc, OPUS_SET_COMPLEXITY(0));
+    opus_encoder_ctl(enc, OPUS_SET_MAX_BANDWIDTH(OPUS_BANDWIDTH_MEDIUMBAND));
+    opus_encoder_ctl(enc, OPUS_SET_BITRATE(2867));
+    data_len = opus_encode(enc, pcm2, 960, data, 1000);
+    assert(data_len > 0);
+
+    opus_encoder_destroy(enc);
+    return 0;
+}
+
 void regression_test(void)
 {
    fprintf(stderr, "Running simple tests for bugs that have been fixed previously\n");
@@ -959,4 +1027,6 @@ void regression_test(void)
    mscbr_encode_fail();
    surround_analysis_uninit();
    ec_enc_shrink_assert();
+   ec_enc_shrink_assert2();
+   silk_gain_assert();
 }
