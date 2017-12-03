@@ -264,6 +264,7 @@ int opus_encoder_init(OpusEncoder* st, opus_int32 Fs, int channels, int applicat
 
 #ifndef DISABLE_FLOAT_API
     tonality_analysis_init(&st->analysis, st->Fs);
+    st->analysis.application = st->application;
 #endif
 
     return OPUS_OK;
@@ -341,10 +342,11 @@ static void silk_biquad_float(
 }
 #endif
 
-static void hp_cutoff(const opus_val16 *in, opus_int32 cutoff_Hz, opus_val16 *out, opus_val32 *hp_mem, int len, int channels, opus_int32 Fs)
+static void hp_cutoff(const opus_val16 *in, opus_int32 cutoff_Hz, opus_val16 *out, opus_val32 *hp_mem, int len, int channels, opus_int32 Fs, int arch)
 {
    opus_int32 B_Q28[ 3 ], A_Q28[ 2 ];
    opus_int32 Fc_Q19, r_Q28, r_Q22;
+   (void)arch;
 
    silk_assert( cutoff_Hz <= silk_int32_MAX / SILK_FIX_CONST( 1.5 * 3.14159 / 1000, 19 ) );
    Fc_Q19 = silk_DIV32_16( silk_SMULBB( SILK_FIX_CONST( 1.5 * 3.14159 / 1000, 19 ), cutoff_Hz ), Fs/1000 );
@@ -364,9 +366,10 @@ static void hp_cutoff(const opus_val16 *in, opus_int32 cutoff_Hz, opus_val16 *ou
    A_Q28[ 1 ] = silk_SMULWW( r_Q22, r_Q22 );
 
 #ifdef FIXED_POINT
-   silk_biquad_alt( in, B_Q28, A_Q28, hp_mem, out, len, channels );
-   if( channels == 2 ) {
-       silk_biquad_alt( in+1, B_Q28, A_Q28, hp_mem+2, out+1, len, channels );
+   if( channels == 1 ) {
+      silk_biquad_alt_stride1( in, B_Q28, A_Q28, hp_mem, out, len );
+   } else {
+      silk_biquad_alt_stride2( in, B_Q28, A_Q28, hp_mem, out, len, arch );
    }
 #else
    silk_biquad_float( in, B_Q28, A_Q28, hp_mem, out, len, channels );
@@ -1040,6 +1043,34 @@ static opus_int32 encode_multiframe_packet(OpusEncoder *st,
    return ret;
 }
 
+static int compute_redundancy_bytes(opus_int32 max_data_bytes, opus_int32 bitrate_bps, int frame_rate, int channels)
+{
+   int redundancy_bytes_cap;
+   int redundancy_bytes;
+   opus_int32 redundancy_rate;
+   int base_bits;
+   opus_int32 available_bits;
+   base_bits = (40*channels+20);
+
+   /* Equivalent rate for 5 ms frames. */
+   redundancy_rate = bitrate_bps + base_bits*(200 - frame_rate);
+   /* For VBR, further increase the bitrate if we can afford it. It's pretty short
+      and we'll avoid artefacts. */
+   redundancy_rate = 3*redundancy_rate/2;
+   redundancy_bytes = redundancy_rate/1600;
+
+   /* Compute the max rate we can use given CBR or VBR with cap. */
+   available_bits = max_data_bytes*8 - 2*base_bits;
+   redundancy_bytes_cap = (available_bits*240/(240+48000/frame_rate) + base_bits)/8;
+   redundancy_bytes = IMIN(redundancy_bytes, redundancy_bytes_cap);
+   /* It we can't get enough bits for redundancy to be worth it, rely on the decoder PLC. */
+   if (redundancy_bytes > 4 + 8*channels)
+      redundancy_bytes = IMIN(257, redundancy_bytes);
+   else
+      redundancy_bytes = 0;
+   return redundancy_bytes;
+}
+
 opus_int32 opus_encode_native(OpusEncoder *st, const opus_val16 *pcm, int frame_size,
                 unsigned char *data, opus_int32 out_data_bytes, int lsb_depth,
                 const void *analysis_pcm, opus_int32 analysis_size, int c1, int c2,
@@ -1130,7 +1161,7 @@ opus_int32 opus_encode_native(OpusEncoder *st, const opus_val16 *pcm, int frame_
 
        /* Track the peak signal energy */
        if (!is_silence && analysis_info.activity_probability > DTX_ACTIVITY_THRESHOLD)
-          st->peak_signal_energy = MAX32(MULT16_32_Q15(QCONST16(0.999, 15), st->peak_signal_energy),
+          st->peak_signal_energy = MAX32(MULT16_32_Q15(QCONST16(0.999f, 15), st->peak_signal_energy),
                 compute_frame_energy(pcm, frame_size, st->channels, st->arch));
     }
 #else
@@ -1578,11 +1609,9 @@ opus_int32 opus_encode_native(OpusEncoder *st, const opus_val16 *pcm, int frame_
 
     if (redundancy)
     {
-       /* Fair share of the max size allowed */
-       redundancy_bytes = IMIN(257, max_data_bytes*(opus_int32)(st->Fs/200)/(frame_size+st->Fs/200));
-       /* For VBR, target the actual bitrate (subject to the limit above) */
-       if (st->use_vbr)
-          redundancy_bytes = IMIN(redundancy_bytes, st->bitrate_bps/1600);
+       redundancy_bytes = compute_redundancy_bytes(max_data_bytes, st->bitrate_bps, frame_rate, st->stream_channels);
+       if (redundancy_bytes == 0)
+          redundancy = 0;
     }
 
     /* printf("%d %d %d %d\n", st->bitrate_bps, st->stream_channels, st->mode, curr_bandwidth); */
@@ -1608,7 +1637,7 @@ opus_int32 opus_encode_native(OpusEncoder *st, const opus_val16 *pcm, int frame_
 
     if (st->application == OPUS_APPLICATION_VOIP)
     {
-       hp_cutoff(pcm, cutoff_Hz, &pcm_buf[total_buffer*st->channels], st->hp_mem, frame_size, st->channels, st->Fs);
+       hp_cutoff(pcm, cutoff_Hz, &pcm_buf[total_buffer*st->channels], st->hp_mem, frame_size, st->channels, st->Fs, st->arch);
     } else {
        dc_reject(pcm, 3, &pcm_buf[total_buffer*st->channels], st->hp_mem, frame_size, st->channels, st->Fs);
     }
@@ -1828,7 +1857,8 @@ opus_int32 opus_encode_native(OpusEncoder *st, const opus_val16 *pcm, int frame_
         /* FIXME: How do we allocate the redundancy for CBR? */
         if (st->silk_mode.opusCanSwitch)
         {
-           redundancy = 1;
+           redundancy_bytes = compute_redundancy_bytes(max_data_bytes, st->bitrate_bps, frame_rate, st->stream_channels);
+           redundancy = (redundancy_bytes != 0);
            celt_to_silk = 0;
            st->silk_bw_switch = 1;
         }
@@ -1940,13 +1970,12 @@ opus_int32 opus_encode_native(OpusEncoder *st, const opus_val16 *pcm, int frame_
                /* Reserve the 8 bits needed for the redundancy length,
                   and at least a few bits for CELT if possible */
                max_redundancy = (max_data_bytes-1)-((ec_tell(&enc)+8+3+7)>>3);
-               max_redundancy = IMIN(max_redundancy, redundancy_bytes);
             }
             else
                max_redundancy = (max_data_bytes-1)-((ec_tell(&enc)+7)>>3);
             /* Target the same bit-rate for redundancy as for the rest,
                up to a max of 257 bytes */
-            redundancy_bytes = IMIN(max_redundancy, st->bitrate_bps/1600);
+            redundancy_bytes = IMIN(max_redundancy, redundancy_bytes);
             redundancy_bytes = IMIN(257, IMAX(2, redundancy_bytes));
             if (st->mode == MODE_HYBRID)
                 ec_enc_uint(&enc, redundancy_bytes-2, 256);
@@ -2235,6 +2264,9 @@ int opus_encoder_ctl(OpusEncoder *st, int request, ...)
                break;
             }
             st->application = value;
+#ifndef DISABLE_FLOAT_API
+            st->analysis.application = value;
+#endif
         }
         break;
         case OPUS_GET_APPLICATION_REQUEST:

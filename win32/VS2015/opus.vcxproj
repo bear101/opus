@@ -161,7 +161,11 @@
       <AdditionalIncludeDirectories>..\..\silk\fixed;..\..\silk\float;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions Condition="'$(ConfigurationType)'=='DynamicLibrary'">DLL_EXPORT;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PreprocessorDefinitions Condition="'$(Configuration)'=='DebugDLL_fixed' or '$(Configuration)'=='ReleaseDLL_fixed'">FIXED_POINT;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalOptions Condition="'$(Platform)'=='Win32'">/arch:IA32 %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
+    <Lib>
+      <AdditionalOptions>/ignore:4221 %(AdditionalOptions)</AdditionalOptions>
+    </Lib>
     <PreBuildEvent>
       <Command>"$(ProjectDir)..\..\win32\genversion.bat" "$(ProjectDir)..\..\win32\version.h" PACKAGE_VERSION</Command>
       <Message>Generating version.h</Message>
@@ -244,9 +248,7 @@
     <ClCompile Include="..\..\celt\entcode.c" />
     <ClCompile Include="..\..\celt\entdec.c" />
     <ClCompile Include="..\..\celt\entenc.c" />
-    <ClCompile Include="..\..\celt\kiss_fft.c">
-      <DisableSpecificWarnings Condition="'$(Configuration)'=='DebugDLL_fixed'">4146;%(DisableSpecificWarnings)</DisableSpecificWarnings>
-    </ClCompile>
+    <ClCompile Include="..\..\celt\kiss_fft.c" />
     <ClCompile Include="..\..\celt\laplace.c" />
     <ClCompile Include="..\..\celt\mathops.c" />
     <ClCompile Include="..\..\celt\mdct.c" />
@@ -348,7 +350,9 @@
     <ClCompile Include="..\..\src\mlp.c" />
     <ClCompile Include="..\..\src\mlp_data.c" />
     <ClCompile Include="..\..\src\opus.c" />
-    <ClCompile Include="..\..\src\opus_compare.c" />
+    <ClCompile Include="..\..\src\opus_compare.c">
+      <DisableSpecificWarnings>4244;%(DisableSpecificWarnings)</DisableSpecificWarnings>
+    </ClCompile>
     <ClCompile Include="..\..\src\opus_decoder.c" />
     <ClCompile Include="..\..\src\opus_encoder.c" />
     <ClCompile Include="..\..\src\opus_multistream.c" />
