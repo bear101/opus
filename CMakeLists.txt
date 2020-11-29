@@ -172,6 +172,7 @@ if (MSVC)
     set_target_properties(opus PROPERTIES RUNTIME_OUTPUT_DIRECTORY_RELEASE ../lib/$(Platform))
     set_target_properties(opus PROPERTIES ARCHIVE_OUTPUT_DIRECTORY_DEBUG ../lib/$(Platform))
     set_target_properties(opus PROPERTIES ARCHIVE_OUTPUT_DIRECTORY_RELEASE ../lib/$(Platform))
+    set_property(TARGET opus PROPERTY OUTPUT_NAME_DEBUG opusd)
     foreach (flag_var
       CMAKE_C_FLAGS CMAKE_C_FLAGS_DEBUG CMAKE_C_FLAGS_RELEASE
       CMAKE_C_FLAGS_MINSIZEREL CMAKE_C_FLAGS_RELWITHDEBINFO
